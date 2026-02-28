@@ -1,0 +1,7 @@
+# TwitchLauncher channel list
+# Format: Display Name | URL
+# Lines starting with # are ignored
+
+xQc | https://twitch.tv/xqc
+Ludwig | https://twitch.tv/ludwig
+Summit1g | https://twitch.tv/summit1g
