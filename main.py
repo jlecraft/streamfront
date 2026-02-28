@@ -166,15 +166,26 @@ class App(ctk.CTk):
 
         ctk.CTkLabel(header, text="TwitchLauncher", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
 
+        # Right-side container: refresh button with countdown bar directly beneath it
+        right_frame = ctk.CTkFrame(header, fg_color="transparent")
+        right_frame.pack(side="right")
+
         self.refresh_btn = ctk.CTkButton(
-            header,
+            right_frame,
             text="↻",
             width=36,
             height=36,
             font=ctk.CTkFont(size=20),
             command=self._manual_refresh,
         )
-        self.refresh_btn.pack(side="right")
+        self.refresh_btn.pack()
+
+        if self.api_enabled:
+            self.countdown_bar = ctk.CTkProgressBar(
+                right_frame, width=36, height=4, corner_radius=0
+            )
+            self.countdown_bar.pack(pady=(2, 0))
+            self.countdown_bar.set(0.0)
 
         if not self.api_enabled:
             ctk.CTkLabel(
@@ -183,12 +194,6 @@ class App(ctk.CTk):
                 font=ctk.CTkFont(size=11),
                 text_color="#888888",
             ).pack(padx=16, anchor="w")
-
-        # Countdown bar (visible only when API is enabled)
-        if self.api_enabled:
-            self.countdown_bar = ctk.CTkProgressBar(self, height=4, corner_radius=0)
-            self.countdown_bar.pack(fill="x", padx=16, pady=(2, 0))
-            self.countdown_bar.set(1.0)
 
         # Scrollable channel list
         self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="")
@@ -329,12 +334,12 @@ class App(ctk.CTk):
         if self._countdown_job:
             self.after_cancel(self._countdown_job)
         self._countdown_remaining = self.COUNTDOWN_STEPS
-        self.countdown_bar.set(1.0)
+        self.countdown_bar.set(0.0)
         self._countdown_job = self.after(self.COUNTDOWN_TICK_MS, self._tick_countdown)
 
     def _tick_countdown(self) -> None:
         self._countdown_remaining -= 1
-        self.countdown_bar.set(max(0.0, self._countdown_remaining / self.COUNTDOWN_STEPS))
+        self.countdown_bar.set(1.0 - max(0.0, self._countdown_remaining / self.COUNTDOWN_STEPS))
         if self._countdown_remaining > 0:
             self._countdown_job = self.after(self.COUNTDOWN_TICK_MS, self._tick_countdown)
         else:
