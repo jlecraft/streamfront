@@ -103,25 +103,6 @@ def fetch_live_logins(logins: list[str], client_id: str, token: str) -> set[str]
     return live
 
 
-# ── Stream launcher ───────────────────────────────────────────────────────────
-
-def launch_stream(url: str, quality: str, player: str) -> None:
-    """Fire-and-forget: launch streamlink in a background process."""
-    cmd = ["streamlink", "--player", player, url, quality]
-    try:
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-    except FileNotFoundError:
-        msgbox.showerror(
-            "streamlink not found",
-            "Could not find streamlink in your PATH.\n\n"
-            "Install it with:  pip install streamlink\n"
-            "or from:          https://streamlink.github.io",
-        )
 
 
 # ── Main application ──────────────────────────────────────────────────────────
@@ -155,8 +136,8 @@ class App(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("TwitchLauncher")
-        self.geometry("480x520")
-        self.minsize(400, 300)
+        self.geometry("480x660")
+        self.minsize(400, 400)
         self.resizable(True, True)
 
         icon = BASE_DIR / "icon.ico"
@@ -187,7 +168,7 @@ class App(ctk.CTk):
 
         # Scrollable channel list
         self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="")
-        self.scroll_frame.pack(fill="both", expand=True, padx=16, pady=(4, 16))
+        self.scroll_frame.pack(fill="both", expand=True, padx=16, pady=(4, 4))
         self.scroll_frame.grid_columnconfigure(1, weight=1)
 
         if not self.channels:
@@ -200,6 +181,13 @@ class App(ctk.CTk):
         else:
             for i, ch in enumerate(self.channels):
                 self._add_channel_row(i, ch)
+
+        # Log output area
+        ctk.CTkLabel(self, text="Output", font=ctk.CTkFont(size=12),
+                     text_color="#888888").pack(anchor="w", padx=16)
+        self.log_box = ctk.CTkTextbox(self, height=130, font=ctk.CTkFont(family="Courier", size=11),
+                                      state="disabled", wrap="word")
+        self.log_box.pack(fill="x", padx=16, pady=(0, 16))
 
     def _add_channel_row(self, row: int, ch: dict, is_live: bool = False) -> None:
         # Status dot
@@ -227,9 +215,45 @@ class App(ctk.CTk):
             self.scroll_frame,
             text="Watch ▶",
             width=100,
-            command=lambda url=ch["url"]: launch_stream(url, self.quality, self.player),
+            command=lambda n=ch["name"], url=ch["url"]: self._launch_stream(n, url),
         )
         btn.grid(row=row, column=2, padx=(8, 4), pady=6)
+
+    # ── Stream launcher ───────────────────────────────────────────────────────
+
+    def _launch_stream(self, name: str, url: str) -> None:
+        cmd = ["streamlink", "--player", self.player, url, self.quality]
+        self._log(name, f"Starting: {' '.join(cmd)}")
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            threading.Thread(target=self._read_output, args=(name, proc), daemon=True).start()
+        except FileNotFoundError:
+            self._log(name, "ERROR: streamlink not found in PATH")
+            msgbox.showerror(
+                "streamlink not found",
+                "Could not find streamlink in your PATH.\n\n"
+                "Install it with:  pip install streamlink\n"
+                "or from:          https://streamlink.github.io",
+            )
+
+    def _read_output(self, name: str, proc: subprocess.Popen) -> None:
+        for line in proc.stdout:
+            line = line.rstrip()
+            if line:
+                self.after(0, lambda l=line: self._log(name, l))
+        self.after(0, lambda: self._log(name, "Stream ended."))
+
+    def _log(self, name: str, line: str) -> None:
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", f"[{name}] {line}\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
 
     # ── Live status ───────────────────────────────────────────────────────────
 
