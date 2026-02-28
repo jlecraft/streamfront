@@ -201,13 +201,13 @@ class App(ctk.CTk):
             for i, ch in enumerate(self.channels):
                 self._add_channel_row(i, ch)
 
-    def _add_channel_row(self, row: int, ch: dict) -> None:
+    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False) -> None:
         # Status dot
         dot = ctk.CTkLabel(
             self.scroll_frame,
             text="●",
             font=ctk.CTkFont(size=14),
-            text_color=self.DOT_OFFLINE,
+            text_color=self.DOT_LIVE if is_live else self.DOT_OFFLINE,
             width=24,
         )
         dot.grid(row=row, column=0, padx=(4, 6), pady=6, sticky="w")
@@ -275,9 +275,16 @@ class App(ctk.CTk):
         self.after(0, lambda: self._apply_status(live))
 
     def _apply_status(self, live: set[str]) -> None:
-        for login, dot in self._dot_labels.items():
-            color = self.DOT_LIVE if login in live else self.DOT_OFFLINE
-            dot.configure(text_color=color)
+        # Sort live channels to the top, preserving original order within each group
+        self.channels.sort(key=lambda ch: 0 if ch["login"] in live else 1)
+
+        # Rebuild the channel rows in sorted order
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+        self._dot_labels.clear()
+
+        for i, ch in enumerate(self.channels):
+            self._add_channel_row(i, ch, is_live=bool(ch["login"] and ch["login"] in live))
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
