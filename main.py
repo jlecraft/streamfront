@@ -117,9 +117,11 @@ def _fmt_viewers(n: int) -> str:
 # ── Main application ──────────────────────────────────────────────────────────
 
 class App(ctk.CTk):
-    REFRESH_INTERVAL_MS = 60_000  # auto-refresh every 60 seconds
-    DOT_LIVE = "#2ecc71"          # green
-    DOT_OFFLINE = "#555555"       # dark gray
+    REFRESH_INTERVAL_MS = 60_000   # auto-refresh every 60 seconds
+    COUNTDOWN_TICK_MS = 50         # countdown bar update interval (smooth animation)
+    COUNTDOWN_STEPS = REFRESH_INTERVAL_MS // COUNTDOWN_TICK_MS  # 1200 steps
+    DOT_LIVE = "#2ecc71"           # green
+    DOT_OFFLINE = "#555555"        # dark gray
     HOVER_BG = ("#e0e0e0", "#3a3a3a")
 
     def __init__(self):
@@ -140,8 +142,8 @@ class App(ctk.CTk):
         self._build_ui()
         self._initial_status_refresh()
         if self.api_enabled:
-            self._countdown_remaining = self.REFRESH_INTERVAL_MS // 1000
-            self._countdown_job = self.after(1000, self._tick_countdown)
+            self._countdown_remaining = self.COUNTDOWN_STEPS
+            self._countdown_job = self.after(self.COUNTDOWN_TICK_MS, self._tick_countdown)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -217,17 +219,24 @@ class App(ctk.CTk):
         row_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", cursor="hand2")
         row_frame.pack(fill="x", pady=1)
         row_frame.bind("<Button-1>", launch)
+        row_frame.bind("<Enter>", on_enter)
+        row_frame.bind("<Leave>", on_leave)
+
+        # Debounced hover: Leave schedules a clear after 20ms; Enter cancels it.
+        # This prevents flicker when the mouse moves between children in the same row.
+        _leave_job = [None]
 
         def on_enter(e):
+            if _leave_job[0]:
+                row_frame.after_cancel(_leave_job[0])
+                _leave_job[0] = None
             row_frame.configure(fg_color=self.HOVER_BG)
 
         def on_leave(e):
-            # Only unhighlight if the cursor has genuinely left the row frame
-            x, y = e.x_root, e.y_root
-            rx, ry = row_frame.winfo_rootx(), row_frame.winfo_rooty()
-            rw, rh = row_frame.winfo_width(), row_frame.winfo_height()
-            if not (rx <= x < rx + rw and ry <= y < ry + rh):
+            def do_clear():
+                _leave_job[0] = None
                 row_frame.configure(fg_color="transparent")
+            _leave_job[0] = row_frame.after(20, do_clear)
 
         # Status dot
         dot = ctk.CTkLabel(
@@ -318,16 +327,15 @@ class App(ctk.CTk):
     def _reset_countdown(self) -> None:
         if self._countdown_job:
             self.after_cancel(self._countdown_job)
-        self._countdown_remaining = self.REFRESH_INTERVAL_MS // 1000
+        self._countdown_remaining = self.COUNTDOWN_STEPS
         self.countdown_bar.set(1.0)
-        self._countdown_job = self.after(1000, self._tick_countdown)
+        self._countdown_job = self.after(self.COUNTDOWN_TICK_MS, self._tick_countdown)
 
     def _tick_countdown(self) -> None:
         self._countdown_remaining -= 1
-        progress = max(0.0, self._countdown_remaining / (self.REFRESH_INTERVAL_MS // 1000))
-        self.countdown_bar.set(progress)
+        self.countdown_bar.set(max(0.0, self._countdown_remaining / self.COUNTDOWN_STEPS))
         if self._countdown_remaining > 0:
-            self._countdown_job = self.after(1000, self._tick_countdown)
+            self._countdown_job = self.after(self.COUNTDOWN_TICK_MS, self._tick_countdown)
         else:
             self._countdown_job = None
 
