@@ -219,8 +219,6 @@ class App(ctk.CTk):
         row_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", cursor="hand2")
         row_frame.pack(fill="x", pady=1)
         row_frame.bind("<Button-1>", launch)
-        row_frame.bind("<Enter>", on_enter)
-        row_frame.bind("<Leave>", on_leave)
 
         # Debounced hover: Leave schedules a clear after 20ms; Enter cancels it.
         # This prevents flicker when the mouse moves between children in the same row.
@@ -237,6 +235,9 @@ class App(ctk.CTk):
                 _leave_job[0] = None
                 row_frame.configure(fg_color="transparent")
             _leave_job[0] = row_frame.after(20, do_clear)
+
+        row_frame.bind("<Enter>", on_enter)
+        row_frame.bind("<Leave>", on_leave)
 
         # Status dot
         dot = ctk.CTkLabel(
