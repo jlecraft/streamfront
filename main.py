@@ -81,9 +81,9 @@ def get_app_token(client_id: str, client_secret: str) -> str | None:
         return None
 
 
-def fetch_live_logins(logins: list[str], client_id: str, token: str) -> set[str]:
-    """Return the set of login names that are currently live."""
-    live = set()
+def fetch_live_data(logins: list[str], client_id: str, token: str) -> dict[str, int]:
+    """Return a dict mapping login name → viewer count for all currently live channels."""
+    live: dict[str, int] = {}
     # API accepts up to 100 logins per request
     for i in range(0, len(logins), 100):
         chunk = logins[i : i + 100]
@@ -97,10 +97,19 @@ def fetch_live_logins(logins: list[str], client_id: str, token: str) -> set[str]
             )
             resp.raise_for_status()
             for stream in resp.json().get("data", []):
-                live.add(stream["user_login"].lower())
+                login = stream["user_login"].lower()
+                live[login] = stream.get("viewer_count", 0)
         except Exception:
             pass
     return live
+
+
+def _fmt_viewers(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M viewers"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K viewers"
+    return f"{n} viewers"
 
 
 
@@ -189,7 +198,7 @@ class App(ctk.CTk):
                                       state="disabled", wrap="word")
         self.log_box.pack(fill="x", padx=16, pady=(0, 16))
 
-    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False) -> None:
+    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0) -> None:
         # Status dot
         dot = ctk.CTkLabel(
             self.scroll_frame,
@@ -202,10 +211,13 @@ class App(ctk.CTk):
         if ch["login"]:
             self._dot_labels[ch["login"]] = dot
 
-        # Channel name
+        # Channel name (with viewer count appended when live)
+        label_text = ch["name"]
+        if is_live and viewer_count > 0:
+            label_text += f"  ·  {_fmt_viewers(viewer_count)}"
         ctk.CTkLabel(
             self.scroll_frame,
-            text=ch["name"],
+            text=label_text,
             font=ctk.CTkFont(size=14),
             anchor="w",
         ).grid(row=row, column=1, padx=4, pady=6, sticky="ew")
@@ -295,7 +307,7 @@ class App(ctk.CTk):
         logins = [ch["login"] for ch in self.channels if ch["login"]]
         if not logins or not self.token:
             return
-        live = fetch_live_logins(logins, self.client_id, self.token)
+        live = fetch_live_data(logins, self.client_id, self.token)
         self.after(0, lambda: self._apply_status(live))
 
     def _apply_status(self, live: set[str]) -> None:
@@ -308,7 +320,9 @@ class App(ctk.CTk):
         self._dot_labels.clear()
 
         for i, ch in enumerate(self.channels):
-            self._add_channel_row(i, ch, is_live=bool(ch["login"] and ch["login"] in live))
+            is_live = bool(ch["login"] and ch["login"] in live)
+            count = live.get(ch["login"], 0) if ch["login"] else 0
+            self._add_channel_row(i, ch, is_live=is_live, viewer_count=count)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
