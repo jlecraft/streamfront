@@ -143,15 +143,14 @@ python main.py
 
 ## Step 10 — Create a Desktop Shortcut (Optional)
 
-1. Open `C:\Projects\TwitchLauncher\` in File Explorer
-2. Right-click `launch.bat` → **Send to** → **Desktop (create shortcut)**
-3. Double-clicking the shortcut will launch TwitchLauncher without a console window
+Run the included helper script to create a shortcut on your Desktop with the custom icon automatically applied:
 
-To add the custom icon to the shortcut:
-1. Right-click the desktop shortcut → **Properties**
-2. Click **Change Icon**
-3. Browse to `C:\Projects\TwitchLauncher\icon.ico`
-4. Click **OK**
+```
+cd C:\Projects\TwitchLauncher
+python create_shortcut.py
+```
+
+This creates `TwitchLauncher.lnk` on your Desktop. Double-clicking it will launch the app without a console window, and it will show the purple TwitchLauncher icon.
 
 ---
 
