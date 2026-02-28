@@ -51,7 +51,7 @@ def parse_channels(path: Path) -> list[dict]:
             url = line.strip()
             name = url
         login = extract_twitch_login(url)
-        channels.append({"name": name, "url": url, "login": login})
+        channels.append({"name": name, "url": url, "login": login, "index": len(channels)})
     return channels
 
 
@@ -275,8 +275,8 @@ class App(ctk.CTk):
         self.after(0, lambda: self._apply_status(live))
 
     def _apply_status(self, live: set[str]) -> None:
-        # Sort live channels to the top, preserving original order within each group
-        self.channels.sort(key=lambda ch: 0 if ch["login"] in live else 1)
+        # Sort live channels to the top, preserving original file order within each group
+        self.channels.sort(key=lambda ch: (0 if ch["login"] in live else 1, ch["index"]))
 
         # Rebuild the channel rows in sorted order
         for widget in self.scroll_frame.winfo_children():
