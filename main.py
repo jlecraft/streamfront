@@ -161,8 +161,10 @@ class App(ctk.CTk):
 
         self.refresh_btn = ctk.CTkButton(
             header,
-            text="Refresh",
-            width=90,
+            text="↻",
+            width=36,
+            height=36,
+            font=ctk.CTkFont(size=20),
             command=self._manual_refresh,
         )
         self.refresh_btn.pack(side="right")
@@ -179,6 +181,7 @@ class App(ctk.CTk):
         self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="")
         self.scroll_frame.pack(fill="both", expand=True, padx=16, pady=(4, 4))
         self.scroll_frame.grid_columnconfigure(1, weight=1)
+        self.scroll_frame.grid_columnconfigure(2, weight=0)
 
         if not self.channels:
             ctk.CTkLabel(
@@ -199,6 +202,8 @@ class App(ctk.CTk):
         self.log_box.pack(fill="x", padx=16, pady=(0, 16))
 
     def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0) -> None:
+        launch = lambda e=None, n=ch["name"], url=ch["url"]: self._launch_stream(n, url)
+
         # Status dot
         dot = ctk.CTkLabel(
             self.scroll_frame,
@@ -206,30 +211,37 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=14),
             text_color=self.DOT_LIVE if is_live else self.DOT_OFFLINE,
             width=24,
+            cursor="hand2",
         )
         dot.grid(row=row, column=0, padx=(4, 6), pady=6, sticky="w")
+        dot.bind("<Button-1>", launch)
         if ch["login"]:
             self._dot_labels[ch["login"]] = dot
 
-        # Channel name (with viewer count appended when live)
-        label_text = ch["name"]
-        if is_live and viewer_count > 0:
-            label_text += f"  ·  {_fmt_viewers(viewer_count)}"
-        ctk.CTkLabel(
+        # Channel name
+        name_label = ctk.CTkLabel(
             self.scroll_frame,
-            text=label_text,
+            text=ch["name"],
             font=ctk.CTkFont(size=14),
             anchor="w",
-        ).grid(row=row, column=1, padx=4, pady=6, sticky="ew")
-
-        # Watch button
-        btn = ctk.CTkButton(
-            self.scroll_frame,
-            text="Watch ▶",
-            width=100,
-            command=lambda n=ch["name"], url=ch["url"]: self._launch_stream(n, url),
+            cursor="hand2",
         )
-        btn.grid(row=row, column=2, padx=(8, 4), pady=6)
+        name_label.grid(row=row, column=1, padx=4, pady=6, sticky="ew")
+        name_label.bind("<Button-1>", launch)
+
+        # Viewer count (separate column, muted, right-aligned)
+        count_text = _fmt_viewers(viewer_count) if is_live and viewer_count > 0 else ""
+        count_label = ctk.CTkLabel(
+            self.scroll_frame,
+            text=count_text,
+            font=ctk.CTkFont(size=12),
+            text_color="#888888",
+            anchor="e",
+            width=100,
+            cursor="hand2",
+        )
+        count_label.grid(row=row, column=2, padx=(0, 8), pady=6, sticky="e")
+        count_label.bind("<Button-1>", launch)
 
     # ── Stream launcher ───────────────────────────────────────────────────────
 
@@ -293,7 +305,7 @@ class App(ctk.CTk):
                 "Add your Twitch client_id and client_secret to config.ini to enable live status.",
             )
             return
-        self.refresh_btn.configure(state="disabled", text="Refreshing…")
+        self.refresh_btn.configure(state="disabled")
         threading.Thread(target=self._manual_refresh_worker, daemon=True).start()
 
     def _manual_refresh_worker(self) -> None:
@@ -301,7 +313,7 @@ class App(ctk.CTk):
             self.token = get_app_token(self.client_id, self.client_secret)
         if self.token:
             self._do_status_refresh()
-        self.after(0, lambda: self.refresh_btn.configure(state="normal", text="Refresh"))
+        self.after(0, lambda: self.refresh_btn.configure(state="normal"))
 
     def _do_status_refresh(self) -> None:
         logins = [ch["login"] for ch in self.channels if ch["login"]]
