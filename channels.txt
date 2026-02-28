@@ -6,7 +6,6 @@
 # Favorites
 BdoubleO100 | https://twitch.tv/bdoubleo
 Cubfan135 | https://twitch.tv/cubfan135
-FalseSymmetry | https://twitch.tv/falsesymmetry
 GeminiTay | https://twitch.tv/geminitay
 GoodTimesWithScar | https://twitch.tv/goodtimeswithscar
 Grian | https://twitch.tv/grian
@@ -14,18 +13,19 @@ ImpulseSV | https://twitch.tv/impulsesv
 MumboJumbo | https://twitch.tv/thatmumbojumbo
 PearlescentMoon | https://twitch.tv/pearlescentmoon
 SmallishBeans | https://twitch.tv/smallishbeans
+TangoTek | https://twitch.tv/tangotek
 Xisumavoid | https://twitch.tv/xisuma
 # Others
-Docm77 | https://twitch.tv/docm77live
+Rendog | https://twitch.tv/rendogtv
+xBCrafted | https://twitch.tv/xbcrafted
+VintageBeef | https://twitch.tv/vintagebeef
+Skizzleman | https://twitch.tv/skizzleman
+ZedaphPlays | https://twitch.tv/zedaphplays
+Keralis | https://twitch.tv/keralis
+FalseSymmetry | https://twitch.tv/falsesymmetry
 Hypnotizd | https://twitch.tv/hypnotizd
 iJevin | https://twitch.tv/ijevin
 JoeHills | https://twitch.tv/joehills
-Keralis | https://twitch.tv/keralis
-Rendog | https://twitch.tv/rendogtv
-Skizzleman | https://twitch.tv/skizzleman
-TangoTek | https://twitch.tv/tangotek
-VintageBeef | https://twitch.tv/vintagebeef
-Welsknight | https://twitch.tv/welsknight
-xBCrafted | https://twitch.tv/xbcrafted
-ZedaphPlays | https://twitch.tv/zedaphplays
 ZombieCleo | https://twitch.tv/zombiecleo
+Docm77 | https://twitch.tv/docm77live
+Welsknight | https://twitch.tv/welsknight
