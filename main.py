@@ -120,6 +120,7 @@ class App(ctk.CTk):
     REFRESH_INTERVAL_MS = 60_000  # auto-refresh every 60 seconds
     DOT_LIVE = "#2ecc71"          # green
     DOT_OFFLINE = "#555555"       # dark gray
+    HOVER_BG = ("#e0e0e0", "#3a3a3a")
 
     def __init__(self):
         super().__init__()
@@ -134,9 +135,13 @@ class App(ctk.CTk):
         self.channels = parse_channels(CHANNELS_FILE)
         self._dot_labels: dict[str, ctk.CTkLabel] = {}  # login → dot label
         self._refresh_job = None
+        self._countdown_job = None
 
         self._build_ui()
         self._initial_status_refresh()
+        if self.api_enabled:
+            self._countdown_remaining = self.REFRESH_INTERVAL_MS // 1000
+            self._countdown_job = self.after(1000, self._tick_countdown)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -177,11 +182,15 @@ class App(ctk.CTk):
                 text_color="#888888",
             ).pack(padx=16, anchor="w")
 
+        # Countdown bar (visible only when API is enabled)
+        if self.api_enabled:
+            self.countdown_bar = ctk.CTkProgressBar(self, height=4, corner_radius=0)
+            self.countdown_bar.pack(fill="x", padx=16, pady=(2, 0))
+            self.countdown_bar.set(1.0)
+
         # Scrollable channel list
         self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="")
         self.scroll_frame.pack(fill="both", expand=True, padx=16, pady=(4, 4))
-        self.scroll_frame.grid_columnconfigure(1, weight=1)
-        self.scroll_frame.grid_columnconfigure(2, weight=0)
 
         if not self.channels:
             ctk.CTkLabel(
@@ -189,7 +198,7 @@ class App(ctk.CTk):
                 text="No channels found.\nEdit channels.txt to add some.",
                 font=ctk.CTkFont(size=13),
                 text_color="#888888",
-            ).grid(row=0, column=0, columnspan=3, pady=40)
+            ).pack(pady=40)
         else:
             for i, ch in enumerate(self.channels):
                 self._add_channel_row(i, ch)
@@ -204,44 +213,69 @@ class App(ctk.CTk):
     def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0) -> None:
         launch = lambda e=None, n=ch["name"], url=ch["url"]: self._launch_stream(n, url)
 
+        # Row frame — hover highlight covers the full row
+        row_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", cursor="hand2")
+        row_frame.pack(fill="x", pady=1)
+        row_frame.bind("<Button-1>", launch)
+
+        def on_enter(e):
+            row_frame.configure(fg_color=self.HOVER_BG)
+
+        def on_leave(e):
+            # Only unhighlight if the cursor has genuinely left the row frame
+            x, y = e.x_root, e.y_root
+            rx, ry = row_frame.winfo_rootx(), row_frame.winfo_rooty()
+            rw, rh = row_frame.winfo_width(), row_frame.winfo_height()
+            if not (rx <= x < rx + rw and ry <= y < ry + rh):
+                row_frame.configure(fg_color="transparent")
+
         # Status dot
         dot = ctk.CTkLabel(
-            self.scroll_frame,
+            row_frame,
             text="●",
             font=ctk.CTkFont(size=14),
             text_color=self.DOT_LIVE if is_live else self.DOT_OFFLINE,
             width=24,
+            fg_color="transparent",
             cursor="hand2",
         )
-        dot.grid(row=row, column=0, padx=(4, 6), pady=6, sticky="w")
+        dot.pack(side="left", padx=(4, 6), pady=6)
         dot.bind("<Button-1>", launch)
+        dot.bind("<Enter>", on_enter)
+        dot.bind("<Leave>", on_leave)
         if ch["login"]:
             self._dot_labels[ch["login"]] = dot
 
-        # Channel name
-        name_label = ctk.CTkLabel(
-            self.scroll_frame,
-            text=ch["name"],
-            font=ctk.CTkFont(size=14),
-            anchor="w",
-            cursor="hand2",
-        )
-        name_label.grid(row=row, column=1, padx=4, pady=6, sticky="ew")
-        name_label.bind("<Button-1>", launch)
-
-        # Viewer count (separate column, muted, right-aligned)
+        # Viewer count (packed right first so name fills remaining space)
         count_text = _fmt_viewers(viewer_count) if is_live and viewer_count > 0 else ""
         count_label = ctk.CTkLabel(
-            self.scroll_frame,
+            row_frame,
             text=count_text,
             font=ctk.CTkFont(size=12),
             text_color="#888888",
             anchor="e",
             width=100,
+            fg_color="transparent",
             cursor="hand2",
         )
-        count_label.grid(row=row, column=2, padx=(0, 8), pady=6, sticky="e")
+        count_label.pack(side="right", padx=(0, 8), pady=6)
         count_label.bind("<Button-1>", launch)
+        count_label.bind("<Enter>", on_enter)
+        count_label.bind("<Leave>", on_leave)
+
+        # Channel name
+        name_label = ctk.CTkLabel(
+            row_frame,
+            text=ch["name"],
+            font=ctk.CTkFont(size=14),
+            anchor="w",
+            fg_color="transparent",
+            cursor="hand2",
+        )
+        name_label.pack(side="left", fill="x", expand=True, padx=4, pady=6)
+        name_label.bind("<Button-1>", launch)
+        name_label.bind("<Enter>", on_enter)
+        name_label.bind("<Leave>", on_leave)
 
     # ── Stream launcher ───────────────────────────────────────────────────────
 
@@ -278,6 +312,24 @@ class App(ctk.CTk):
         self.log_box.insert("end", f"[{name}] {line}\n")
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
+
+    # ── Countdown bar ─────────────────────────────────────────────────────────
+
+    def _reset_countdown(self) -> None:
+        if self._countdown_job:
+            self.after_cancel(self._countdown_job)
+        self._countdown_remaining = self.REFRESH_INTERVAL_MS // 1000
+        self.countdown_bar.set(1.0)
+        self._countdown_job = self.after(1000, self._tick_countdown)
+
+    def _tick_countdown(self) -> None:
+        self._countdown_remaining -= 1
+        progress = max(0.0, self._countdown_remaining / (self.REFRESH_INTERVAL_MS // 1000))
+        self.countdown_bar.set(progress)
+        if self._countdown_remaining > 0:
+            self._countdown_job = self.after(1000, self._tick_countdown)
+        else:
+            self._countdown_job = None
 
     # ── Live status ───────────────────────────────────────────────────────────
 
@@ -323,6 +375,9 @@ class App(ctk.CTk):
         self.after(0, lambda: self._apply_status(live))
 
     def _apply_status(self, live: set[str]) -> None:
+        if self.api_enabled:
+            self._reset_countdown()
+
         # Sort live channels to the top, preserving original file order within each group
         self.channels.sort(key=lambda ch: (0 if ch["login"] in live else 1, ch["index"]))
 
