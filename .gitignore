@@ -38,6 +38,7 @@ desktop.ini
 *.env
 secrets.*
 config.ini
+make_icon.py
 
 # Logs
 logs/

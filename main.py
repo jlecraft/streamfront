@@ -159,6 +159,10 @@ class App(ctk.CTk):
         self.minsize(400, 300)
         self.resizable(True, True)
 
+        icon = BASE_DIR / "icon.ico"
+        if icon.exists():
+            self.iconbitmap(str(icon))
+
         # Header
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=16, pady=(16, 8))
