@@ -37,6 +37,7 @@ desktop.ini
 .env
 *.env
 secrets.*
+config.ini
 
 # Logs
 logs/
