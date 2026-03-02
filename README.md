@@ -1,6 +1,6 @@
-# TwitchLauncher
+# streamfront
 
-A Python GUI front-end for [streamlink](https://streamlink.github.io) that lets you launch Twitch streams with a single click.
+A Python GUI front-end for [streamlink](https://streamlink.github.io) that lets you launch streams with a single click.
 
 ## Features
 

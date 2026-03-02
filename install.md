@@ -1,4 +1,4 @@
-# TwitchLauncher — Installation Guide
+# streamfront — Installation Guide
 
 ## Requirements
 
@@ -44,17 +44,17 @@
 
 ---
 
-## Step 4 — Download TwitchLauncher
+## Step 4 — Download streamfront
 
 **Option A — Clone with Git** (if you have Git installed):
 ```
-git clone https://github.com/jlecraft/TwitchLauncher.git C:\Projects\TwitchLauncher
+git clone https://github.com/jlecraft/streamfront.git C:\Projects\streamfront
 ```
 
 **Option B — Download ZIP:**
-1. Go to https://github.com/jlecraft/TwitchLauncher
+1. Go to https://github.com/jlecraft/streamfront
 2. Click the green **Code** button → **Download ZIP**
-3. Extract the ZIP to `C:\Projects\TwitchLauncher\`
+3. Extract the ZIP to `C:\Projects\streamfront\`
 
 ---
 
@@ -63,7 +63,7 @@ git clone https://github.com/jlecraft/TwitchLauncher.git C:\Projects\TwitchLaunc
 Open Command Prompt, navigate to the project folder, and run:
 
 ```
-cd C:\Projects\TwitchLauncher
+cd C:\Projects\streamfront
 pip install -r requirements.txt
 ```
 
@@ -71,7 +71,7 @@ pip install -r requirements.txt
 
 ## Step 6 — Configure the App
 
-Create a file called `config.ini` in `C:\Projects\TwitchLauncher\` with the following content:
+Create a file called `config.ini` in `C:\Projects\streamfront\` with the following content:
 
 ```ini
 [streamlink]
@@ -116,7 +116,7 @@ but all status dots will remain gray.
 
 ## Step 8 — Add Your Channels
 
-Edit `C:\Projects\TwitchLauncher\channels.txt` and add channels in this format:
+Edit `C:\Projects\streamfront\channels.txt` and add channels in this format:
 
 ```
 Display Name | https://twitch.tv/channelname
@@ -135,7 +135,7 @@ Xisumavoid | https://twitch.tv/xisuma
 ## Step 9 — Run the App
 
 ```
-cd C:\Projects\TwitchLauncher
+cd C:\Projects\streamfront
 python main.py
 ```
 
@@ -146,11 +146,11 @@ python main.py
 Run the included helper script to create a shortcut on your Desktop with the custom icon automatically applied:
 
 ```
-cd C:\Projects\TwitchLauncher
+cd C:\Projects\streamfront
 python create_shortcut.py
 ```
 
-This creates `TwitchLauncher.lnk` on your Desktop. Double-clicking it will launch the app without a console window, and it will show the purple TwitchLauncher icon.
+This creates `streamfront.lnk` on your Desktop. Double-clicking it will launch the app without a console window, and it will show the streamfront icon.
 
 ---
 

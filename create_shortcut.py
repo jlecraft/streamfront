@@ -1,5 +1,5 @@
 """
-Creates a TwitchLauncher shortcut on the Desktop with the custom icon.
+Creates a streamfront shortcut on the Desktop with the custom icon.
 Run once: python create_shortcut.py
 """
 
@@ -11,14 +11,14 @@ BASE_DIR = Path(__file__).parent
 BAT      = BASE_DIR / "launch.bat"
 ICON     = BASE_DIR / "icon.ico"
 DESKTOP  = Path(os.environ["USERPROFILE"]) / "Desktop"
-SHORTCUT = DESKTOP / "TwitchLauncher.lnk"
+SHORTCUT = DESKTOP / "streamfront.lnk"
 
 ps = f"""
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut('{SHORTCUT}')
 $s.TargetPath     = '{BAT}'
 $s.IconLocation   = '{ICON}'
 $s.WorkingDirectory = '{BASE_DIR}'
-$s.Description    = 'Launch TwitchLauncher'
+$s.Description    = 'Launch streamfront'
 $s.Save()
 """
 

@@ -1,5 +1,5 @@
 """
-TwitchLauncher - A GUI front-end for streamlink.
+streamfront - A GUI front-end for streamlink.
 Reads channels from channels.txt and presents a one-click launch list.
 """
 
@@ -151,7 +151,7 @@ class App(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.title("TwitchLauncher")
+        self.title("streamfront")
         self.geometry("480x660")
         self.minsize(400, 400)
         self.resizable(True, True)
@@ -164,7 +164,7 @@ class App(ctk.CTk):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=16, pady=(16, 8))
 
-        ctk.CTkLabel(header, text="TwitchLauncher", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
+        ctk.CTkLabel(header, text="streamfront", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
 
         # Right-side container: refresh button with countdown bar directly beneath it
         right_frame = ctk.CTkFrame(header, fg_color="transparent")
@@ -412,7 +412,7 @@ def main() -> None:
     # Ensure channels.txt exists with a helpful template
     if not CHANNELS_FILE.exists():
         CHANNELS_FILE.write_text(
-            "# TwitchLauncher channel list\n"
+            "# streamfront channel list\n"
             "# Format: Display Name | URL\n"
             "# Lines starting with # are ignored\n\n"
             "# Example:\n"

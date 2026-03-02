@@ -1,2 +1,2 @@
 @echo off
-start "" "C:\Program Files\Python\pythonw.exe" "C:\Projects\TwitchLauncher\main.py"
+start "" "C:\Program Files\Python\pythonw.exe" "C:\Projects\streamfront\main.py"
