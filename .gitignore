@@ -42,3 +42,6 @@ config.ini
 # Logs
 logs/
 *.log
+
+# Claude Code
+.claude/
