@@ -38,7 +38,7 @@ def load_category_keywords() -> list[str]:
 
 def load_config() -> configparser.ConfigParser:
     cfg = configparser.ConfigParser()
-    cfg["streamlink"] = {"quality": "best", "player": "vlc"}
+    cfg["streamlink"] = {"quality": "best", "player": ""}
     cfg["twitch_api"] = {"client_id": "", "client_secret": ""}
     if CONFIG_FILE.exists():
         cfg.read(CONFIG_FILE)
@@ -135,7 +135,7 @@ class App(ctk.CTk):
         super().__init__()
         self.cfg = load_config()
         self.quality = self.cfg.get("streamlink", "quality", fallback="best")
-        self.player = self.cfg.get("streamlink", "player", fallback="vlc")
+        self.player = self.cfg.get("streamlink", "player", fallback="").strip()
         self.client_id = self.cfg.get("twitch_api", "client_id", fallback="").strip()
         self.client_secret = self.cfg.get("twitch_api", "client_secret", fallback="").strip()
         self.api_enabled = bool(self.client_id and self.client_secret)
@@ -450,7 +450,8 @@ class App(ctk.CTk):
     # ── Stream launcher ───────────────────────────────────────────────────────
 
     def _launch_stream(self, name: str, url: str) -> None:
-        cmd = ["streamlink", "--player", self.player, url, self.quality]
+        player_args = ["--player", self.player] if self.player else []
+        cmd = ["streamlink", *player_args, url, self.quality]
         self._log(name, f"Starting: {' '.join(cmd)}")
         try:
             proc = subprocess.Popen(
