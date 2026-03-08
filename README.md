@@ -31,12 +31,12 @@ python main.py
 
 ## Channel List
 
-Edit `channels.txt` to add your channels:
+Edit `channels.txt` to add your channels — one Twitch login name per line:
 
 ```
-# Format: Display Name | URL
-Grian | https://twitch.tv/grian
-Xisumavoid | https://twitch.tv/xisuma
+# Lines starting with # are ignored
+grian
+xisuma
 ```
 
 ## Configuration

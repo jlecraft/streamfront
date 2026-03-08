@@ -44,21 +44,10 @@ def parse_channels(path: Path) -> list[dict]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        if "|" in line:
-            name, _, url = line.partition("|")
-            name, url = name.strip(), url.strip()
-        else:
-            url = line.strip()
-            name = url
-        login = extract_twitch_login(url)
-        channels.append({"name": name, "url": url, "login": login, "index": len(channels)})
+        login = line.lower()
+        url = f"https://www.twitch.tv/{login}"
+        channels.append({"name": line, "url": url, "login": login, "index": len(channels)})
     return channels
-
-
-def extract_twitch_login(url: str) -> str | None:
-    """Extract the Twitch login name from a twitch.tv URL."""
-    match = re.search(r"twitch\.tv/([A-Za-z0-9_]+)", url)
-    return match.group(1).lower() if match else None
 
 
 # ── Twitch API ────────────────────────────────────────────────────────────────
@@ -290,7 +279,7 @@ class App(ctk.CTk):
 
         name_label = ctk.CTkLabel(
             name_frame,
-            text=ch["name"],
+            text=ch["name"].upper(),
             font=ctk.CTkFont(size=14),
             anchor="w",
             fg_color="transparent",
@@ -474,10 +463,10 @@ def main() -> None:
     if not CHANNELS_FILE.exists():
         CHANNELS_FILE.write_text(
             "# streamfront channel list\n"
-            "# Format: Display Name | URL\n"
+            "# One Twitch login name per line\n"
             "# Lines starting with # are ignored\n\n"
             "# Example:\n"
-            "# xQc | https://twitch.tv/xqc\n",
+            "# xqc\n",
             encoding="utf-8",
         )
         msgbox.showinfo(
