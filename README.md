@@ -31,13 +31,16 @@ python main.py
 
 ## Channel List
 
-Edit `channels.txt` to add your channels — one Twitch login name per line:
+Edit `channels.txt` to add your channels — one Twitch login per line, with an optional display name separated by a space:
 
 ```
 # Lines starting with # are ignored
 grian
-xisuma
+goodtimeswithscar Scar
+impulsesv Impulse
 ```
+
+If no display name is provided, the login is shown in all caps.
 
 ## Configuration
 

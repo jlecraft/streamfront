@@ -21,8 +21,20 @@ import requests
 BASE_DIR = Path(__file__).parent
 CHANNELS_FILE = BASE_DIR / "channels.txt"
 CONFIG_FILE = BASE_DIR / "config.ini"
+CATEGORY_FILE = BASE_DIR / "category.txt"
 
 # ── Configuration ─────────────────────────────────────────────────────────────
+
+def load_category_keywords() -> list[str]:
+    """Return lowercased keywords from category.txt."""
+    if not CATEGORY_FILE.exists():
+        return []
+    return [
+        line.strip().lower()
+        for line in CATEGORY_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
 
 def load_config() -> configparser.ConfigParser:
     cfg = configparser.ConfigParser()
@@ -44,9 +56,11 @@ def parse_channels(path: Path) -> list[dict]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        login = line.lower()
+        parts = line.split(None, 1)
+        login = parts[0].lower()
+        name = parts[1] if len(parts) > 1 else login.upper()
         url = f"https://www.twitch.tv/{login}"
-        channels.append({"name": line, "url": url, "login": login, "index": len(channels)})
+        channels.append({"name": name, "url": url, "login": login, "index": len(channels)})
     return channels
 
 
@@ -90,6 +104,7 @@ def fetch_live_data(logins: list[str], client_id: str, token: str) -> dict[str, 
                 live[login] = {
                     "viewers": stream.get("viewer_count", 0),
                     "title": stream.get("title", ""),
+                    "category": stream.get("game_name", ""),
                 }
         except Exception:
             pass
@@ -127,9 +142,12 @@ class App(ctk.CTk):
         self.token: str | None = None
 
         self.channels = parse_channels(CHANNELS_FILE)
+        self.category_keywords = load_category_keywords()
         self._row_widgets: dict[int, dict] = {}  # channel index → {frame, dot, count_label, title_label}
         self._refresh_job = None
         self._countdown_job = None
+        self._ad_timer_job = None
+        self._ad_seconds_remaining = 0
 
         self._build_ui()
         self._initial_status_refresh()
@@ -157,6 +175,18 @@ class App(ctk.CTk):
         header.pack(fill="x", padx=16, pady=(16, 8))
 
         ctk.CTkLabel(header, text="streamfront", font=ctk.CTkFont(size=20, weight="bold")).pack(side="left")
+
+        # Ad break timer (hidden until an ad is detected)
+        self.ad_timer_label = ctk.CTkLabel(
+            header,
+            text="",
+            font=ctk.CTkFont(family="Consolas", size=20),
+            text_color="#e74c3c",
+            fg_color="transparent",
+            height=36,
+            anchor="e",
+        )
+        self._attach_tooltip(self.ad_timer_label, "Time remaining on ad break")
 
         # Right-side container: refresh button with countdown bar directly beneath it
         right_frame = ctk.CTkFrame(header, fg_color="transparent")
@@ -187,17 +217,28 @@ class App(ctk.CTk):
                 text_color="#888888",
             ).pack(padx=16, anchor="w")
 
+        # Add streamer entry
+        self.add_entry = ctk.CTkEntry(
+            self,
+            placeholder_text="Add a streamer...",
+            font=ctk.CTkFont(size=13),
+        )
+        self.add_entry.pack(fill="x", padx=16, pady=(0, 6))
+        self.add_entry.bind("<Return>", self._add_channel_from_entry)
+
         # Scrollable channel list
         self.scroll_frame = ctk.CTkScrollableFrame(self, label_text="")
         self.scroll_frame.pack(fill="both", expand=True, padx=16, pady=(4, 4))
 
+        self._empty_label = None
         if not self.channels:
-            ctk.CTkLabel(
+            self._empty_label = ctk.CTkLabel(
                 self.scroll_frame,
-                text="No channels found.\nEdit channels.txt to add some.",
+                text="No channels found. Add one above.",
                 font=ctk.CTkFont(size=13),
                 text_color="#888888",
-            ).pack(pady=40)
+            )
+            self._empty_label.pack(pady=40)
         else:
             for i, ch in enumerate(self.channels):
                 self._add_channel_row(i, ch)
@@ -211,8 +252,9 @@ class App(ctk.CTk):
         self.log_box._textbox.tag_configure("log_ad", foreground="#e74c3c")
         self.log_box._textbox.tag_configure("log_resume", foreground="#2ecc71")
 
-    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0, title: str = "") -> None:
+    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0, title: str = "", category: str = "") -> None:
         launch = lambda e=None, n=ch["name"], url=ch["url"]: self._launch_stream(n, url)
+        delete = lambda e, c=ch: (self._delete_channel(c), "break")[1]
 
         # Row frame — hover highlight covers the full row
         row_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", cursor="hand2")
@@ -237,6 +279,7 @@ class App(ctk.CTk):
 
         row_frame.bind("<Enter>", on_enter)
         row_frame.bind("<Leave>", on_leave)
+        row_frame.bind("<Control-Button-1>", delete)
 
         # Status dot
         dot = ctk.CTkLabel(
@@ -250,6 +293,7 @@ class App(ctk.CTk):
         )
         dot.pack(side="left", padx=(4, 6), pady=6)
         dot.bind("<Button-1>", launch)
+        dot.bind("<Control-Button-1>", delete)
         dot.bind("<Enter>", on_enter)
         dot.bind("<Leave>", on_leave)
 
@@ -267,6 +311,7 @@ class App(ctk.CTk):
         )
         count_label.pack(side="right", anchor="n", padx=(0, 8), pady=(6, 0))
         count_label.bind("<Button-1>", launch)
+        count_label.bind("<Control-Button-1>", delete)
         count_label.bind("<Enter>", on_enter)
         count_label.bind("<Leave>", on_leave)
 
@@ -274,12 +319,13 @@ class App(ctk.CTk):
         name_frame = ctk.CTkFrame(row_frame, fg_color="transparent", cursor="hand2")
         name_frame.pack(side="left", fill="x", expand=True, padx=4, pady=4)
         name_frame.bind("<Button-1>", launch)
+        name_frame.bind("<Control-Button-1>", delete)
         name_frame.bind("<Enter>", on_enter)
         name_frame.bind("<Leave>", on_leave)
 
         name_label = ctk.CTkLabel(
             name_frame,
-            text=ch["name"].upper(),
+            text=ch["name"],
             font=ctk.CTkFont(size=14),
             anchor="w",
             fg_color="transparent",
@@ -287,30 +333,119 @@ class App(ctk.CTk):
         )
         name_label.pack(fill="x", pady=(2, 0))
         name_label.bind("<Button-1>", launch)
+        name_label.bind("<Control-Button-1>", delete)
         name_label.bind("<Enter>", on_enter)
         name_label.bind("<Leave>", on_leave)
 
+        # Subtitle row: category (bold) + title — shown only when live
+        subtitle_frame = ctk.CTkFrame(name_frame, fg_color="transparent", cursor="hand2")
+        subtitle_frame.bind("<Button-1>", launch)
+        subtitle_frame.bind("<Control-Button-1>", delete)
+        subtitle_frame.bind("<Enter>", on_enter)
+        subtitle_frame.bind("<Leave>", on_leave)
+        if is_live and (category or title):
+            subtitle_frame.pack(fill="x", pady=(0, 2))
+
+        category_label = ctk.CTkLabel(
+            subtitle_frame,
+            text=category.upper() if is_live else "",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=self._category_color(category) if is_live and category else "#cccccc",
+            anchor="w",
+            fg_color="transparent",
+            cursor="hand2",
+        )
+        category_label.pack(side="left")
+        category_label.bind("<Button-1>", launch)
+        category_label.bind("<Control-Button-1>", delete)
+        category_label.bind("<Enter>", on_enter)
+        category_label.bind("<Leave>", on_leave)
+
         title_label = ctk.CTkLabel(
-            name_frame,
-            text=title if (is_live and title) else "",
+            subtitle_frame,
+            text=title if is_live else "",
             font=ctk.CTkFont(size=11),
             text_color="#888888",
             anchor="w",
             fg_color="transparent",
             cursor="hand2",
         )
+        title_label.pack(side="left", padx=(6, 0))
         title_label.bind("<Button-1>", launch)
+        title_label.bind("<Control-Button-1>", delete)
         title_label.bind("<Enter>", on_enter)
         title_label.bind("<Leave>", on_leave)
-        if is_live and title:
-            title_label.pack(fill="x", pady=(0, 2))
 
         self._row_widgets[ch["index"]] = {
             "frame": row_frame,
             "dot": dot,
             "count_label": count_label,
+            "subtitle_frame": subtitle_frame,
+            "category_label": category_label,
             "title_label": title_label,
         }
+
+    # ── Add channel ───────────────────────────────────────────────────────────
+
+    def _add_channel_from_entry(self, event=None) -> None:
+        text = self.add_entry.get().strip()
+        if not text:
+            return
+
+        parts = text.split(None, 1)
+        login = parts[0].lower()
+        name = parts[1] if len(parts) > 1 else login.upper()
+
+        # Ignore duplicates
+        if any(ch["login"] == login for ch in self.channels):
+            self.add_entry.delete(0, "end")
+            return
+
+        ch = {"name": name, "url": f"https://www.twitch.tv/{login}", "login": login, "index": len(self.channels)}
+        self.channels.append(ch)
+
+        # Persist to channels.txt
+        with open(CHANNELS_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{login} {name}\n" if len(parts) > 1 else f"{login}\n")
+
+        # Clear empty state label if present
+        if self._empty_label:
+            self._empty_label.destroy()
+            self._empty_label = None
+
+        self._add_channel_row(ch["index"], ch)
+        self.add_entry.delete(0, "end")
+        self._manual_refresh()
+
+    # ── Delete channel ────────────────────────────────────────────────────────
+
+    def _delete_channel(self, ch: dict) -> None:
+        # Remove from UI
+        widgets = self._row_widgets.pop(ch["index"], None)
+        if widgets:
+            widgets["frame"].destroy()
+
+        # Remove from channel list
+        self.channels = [c for c in self.channels if c["login"] != ch["login"]]
+
+        # Rewrite channels.txt, dropping the matching line
+        lines = CHANNELS_FILE.read_text(encoding="utf-8").splitlines()
+        new_lines = [
+            line for line in lines
+            if not (line.strip() and not line.strip().startswith("#")
+                    and line.strip().split(None, 1)[0].lower() == ch["login"])
+        ]
+        CHANNELS_FILE.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+        # Show empty state if the list is now empty
+        if not self.channels and not self._empty_label:
+            self._empty_label = ctk.CTkLabel(
+                self.scroll_frame,
+                text="No channels found. Add one above.",
+                font=ctk.CTkFont(size=13),
+                text_color="#888888",
+            )
+            self._empty_label.pack(pady=40)
 
     # ── Stream launcher ───────────────────────────────────────────────────────
 
@@ -347,13 +482,69 @@ class App(ctk.CTk):
         full_line = f"[{name}] {line}\n"
         if re.search(r"advertisement", line, re.IGNORECASE):
             tag = "log_ad"
+            match = re.search(r"(\d+)\s+seconds?", line, re.IGNORECASE)
+            if match:
+                self._start_ad_timer(int(match.group(1)))
         elif re.search(r"resuming stream output", line, re.IGNORECASE):
             tag = "log_resume"
+            if self._ad_timer_job:
+                self.after_cancel(self._ad_timer_job)
+                self._ad_timer_job = None
+            self.ad_timer_label.pack_forget()
         else:
             tag = None
         self.log_box._textbox.insert("end", full_line, (tag,) if tag else ())
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
+
+    def _category_color(self, category: str) -> str:
+        low = category.lower()
+        if any(kw in low for kw in self.category_keywords):
+            return "#5dade2"  # light blue
+        return "#cccccc"
+
+    # ── Tooltip ───────────────────────────────────────────────────────────────
+
+    def _attach_tooltip(self, widget, text: str) -> None:
+        tip = [None]
+
+        def show(e):
+            tip[0] = tk.Toplevel(widget)
+            tip[0].wm_overrideredirect(True)
+            tip[0].wm_geometry(f"+{e.x_root + 12}+{e.y_root + 8}")
+            tk.Label(tip[0], text=text, background="#333333", foreground="#ffffff",
+                     font=("Segoe UI", 10), padx=6, pady=3, relief="flat").pack()
+
+        def hide(e):
+            if tip[0]:
+                tip[0].destroy()
+                tip[0] = None
+
+        widget.bind("<Enter>", show)
+        widget.bind("<Leave>", hide)
+
+    # ── Ad break timer ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _fmt_ad_time(seconds: int) -> str:
+        return f"{seconds // 60:02}:{seconds % 60:02}"
+
+    def _start_ad_timer(self, seconds: int) -> None:
+        if self._ad_timer_job:
+            self.after_cancel(self._ad_timer_job)
+        self._ad_seconds_remaining = seconds
+        self.ad_timer_label.configure(text=self._fmt_ad_time(seconds))
+        self.ad_timer_label.pack(side="right", padx=(0, 12))
+        self._ad_timer_job = self.after(1000, self._tick_ad_timer)
+
+    def _tick_ad_timer(self) -> None:
+        self._ad_seconds_remaining -= 1
+        if self._ad_seconds_remaining <= 0:
+            self.ad_timer_label.pack_forget()
+            self._ad_timer_job = None
+        else:
+            self.ad_timer_label.configure(text=self._fmt_ad_time(self._ad_seconds_remaining))
+            self._ad_timer_job = self.after(1000, self._tick_ad_timer)
 
     # ── Countdown bar ─────────────────────────────────────────────────────────
 
@@ -431,6 +622,7 @@ class App(ctk.CTk):
             info = live.get(ch["login"], {}) if ch["login"] else {}
             count = info.get("viewers", 0)
             title = info.get("title", "")
+            category = info.get("category", "")
 
             widgets["dot"].configure(
                 text_color=self.DOT_LIVE if is_live else self.DOT_OFFLINE
@@ -438,12 +630,16 @@ class App(ctk.CTk):
             widgets["count_label"].configure(
                 text=_fmt_viewers(count) if is_live and count > 0 else ""
             )
-            tl = widgets["title_label"]
-            if is_live and title:
-                tl.configure(text=title)
-                tl.pack(fill="x", pady=(0, 2))
+            sf = widgets["subtitle_frame"]
+            if is_live and (category or title):
+                widgets["category_label"].configure(
+                    text=category.upper(),
+                    text_color=self._category_color(category) if category else "#cccccc",
+                )
+                widgets["title_label"].configure(text=title)
+                sf.pack(fill="x", pady=(0, 2))
             else:
-                tl.pack_forget()
+                sf.pack_forget()
 
         # Reorder rows without destroying them
         for ch in self.channels:
@@ -463,10 +659,11 @@ def main() -> None:
     if not CHANNELS_FILE.exists():
         CHANNELS_FILE.write_text(
             "# streamfront channel list\n"
-            "# One Twitch login name per line\n"
+            "# One Twitch login per line, with an optional display name after a space\n"
             "# Lines starting with # are ignored\n\n"
-            "# Example:\n"
-            "# xqc\n",
+            "# Examples:\n"
+            "# xqc\n"
+            "# goodtimeswithscar Scar\n",
             encoding="utf-8",
         )
         msgbox.showinfo(

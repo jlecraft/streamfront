@@ -1,28 +1,31 @@
 # Favorites
-trikeri_omni
-aztecross
-bdoubleo
-cubfan135
-geminitay
-goodtimeswithscar
-grian
-impulsesv
-thatmumbojumbo
-pearlescentmoon
-smallishbeans
-tangotek
-xisuma
+trikeri_omni Troy
+shroud
+forsen
+aztecross Aztecross
+bdoubleo Bdubs
+cubfan135 Cub
+geminitay Gemini Tay
+goodtimeswithscar Scar
+grian Grian
+impulsesv Impulse
+thatmumbojumbo Mumbo
+pearlescentmoon Pearl
+smallishbeans Joel
+tangotek Tango
+xisuma Xisuma
 # Others
-rendogtv
-xbcrafted
-vintagebeef
-skizzleman
-zedaphplays
-keralis
-falsesymmetry
-hypnotizd
-ijevin
-joehills
-zombiecleo
+rendogtv Rendog
+xbcrafted XB
+vintagebeef Vintagebeef
+skizzleman Skizz
+zedaphplays Zedaph
+keralis Keralis
+falsesymmetry False
+hypnotizd Hypno
+ijevin Jevin
+joehills Joe
+zombiecleo Cleo
 docm77live
 welsknight
+jungle_tz
