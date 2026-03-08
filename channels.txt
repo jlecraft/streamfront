@@ -1,9 +1,6 @@
-# Hermitcraft Members
-# Format: Display Name | URL
-# Lines starting with # are ignored
-# Note: EthosLab is YouTube-only and has no Twitch channel
-
 # Favorites
+Trikeri | https://www.twitch.tv/trikeri_omni
+Aztecross | https://twitch.tv/aztecross
 BdoubleO100 | https://twitch.tv/bdoubleo
 Cubfan135 | https://twitch.tv/cubfan135
 GeminiTay | https://twitch.tv/geminitay

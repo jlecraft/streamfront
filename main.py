@@ -81,9 +81,9 @@ def get_app_token(client_id: str, client_secret: str) -> str | None:
         return None
 
 
-def fetch_live_data(logins: list[str], client_id: str, token: str) -> dict[str, int]:
-    """Return a dict mapping login name → viewer count for all currently live channels."""
-    live: dict[str, int] = {}
+def fetch_live_data(logins: list[str], client_id: str, token: str) -> dict[str, dict]:
+    """Return a dict mapping login name → {viewers, title} for all currently live channels."""
+    live: dict[str, dict] = {}
     # API accepts up to 100 logins per request
     for i in range(0, len(logins), 100):
         chunk = logins[i : i + 100]
@@ -98,7 +98,10 @@ def fetch_live_data(logins: list[str], client_id: str, token: str) -> dict[str, 
             resp.raise_for_status()
             for stream in resp.json().get("data", []):
                 login = stream["user_login"].lower()
-                live[login] = stream.get("viewer_count", 0)
+                live[login] = {
+                    "viewers": stream.get("viewer_count", 0),
+                    "title": stream.get("title", ""),
+                }
         except Exception:
             pass
     return live
@@ -135,7 +138,7 @@ class App(ctk.CTk):
         self.token: str | None = None
 
         self.channels = parse_channels(CHANNELS_FILE)
-        self._dot_labels: dict[str, ctk.CTkLabel] = {}  # login → dot label
+        self._row_widgets: dict[int, dict] = {}  # channel index → {frame, dot, count_label, title_label}
         self._refresh_job = None
         self._countdown_job = None
 
@@ -152,7 +155,7 @@ class App(ctk.CTk):
         ctk.set_default_color_theme("blue")
 
         self.title("streamfront")
-        self.geometry("480x660")
+        self.geometry("1200x800")
         self.minsize(400, 400)
         self.resizable(True, True)
 
@@ -216,8 +219,10 @@ class App(ctk.CTk):
         self.log_box = ctk.CTkTextbox(self, height=130, font=ctk.CTkFont(family="Courier", size=11),
                                       state="disabled", wrap="word")
         self.log_box.pack(fill="x", padx=16, pady=(0, 16))
+        self.log_box._textbox.tag_configure("log_ad", foreground="#e74c3c")
+        self.log_box._textbox.tag_configure("log_resume", foreground="#2ecc71")
 
-    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0) -> None:
+    def _add_channel_row(self, row: int, ch: dict, is_live: bool = False, viewer_count: int = 0, title: str = "") -> None:
         launch = lambda e=None, n=ch["name"], url=ch["url"]: self._launch_stream(n, url)
 
         # Row frame — hover highlight covers the full row
@@ -258,8 +263,6 @@ class App(ctk.CTk):
         dot.bind("<Button-1>", launch)
         dot.bind("<Enter>", on_enter)
         dot.bind("<Leave>", on_leave)
-        if ch["login"]:
-            self._dot_labels[ch["login"]] = dot
 
         # Viewer count (packed right first so name fills remaining space)
         count_text = _fmt_viewers(viewer_count) if is_live and viewer_count > 0 else ""
@@ -267,30 +270,58 @@ class App(ctk.CTk):
             row_frame,
             text=count_text,
             font=ctk.CTkFont(size=12),
-            text_color="#888888",
+            text_color=self.DOT_LIVE,
             anchor="e",
             width=100,
             fg_color="transparent",
             cursor="hand2",
         )
-        count_label.pack(side="right", padx=(0, 8), pady=6)
+        count_label.pack(side="right", anchor="n", padx=(0, 8), pady=(6, 0))
         count_label.bind("<Button-1>", launch)
         count_label.bind("<Enter>", on_enter)
         count_label.bind("<Leave>", on_leave)
 
-        # Channel name
+        # Channel name (and optional stream title below it)
+        name_frame = ctk.CTkFrame(row_frame, fg_color="transparent", cursor="hand2")
+        name_frame.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+        name_frame.bind("<Button-1>", launch)
+        name_frame.bind("<Enter>", on_enter)
+        name_frame.bind("<Leave>", on_leave)
+
         name_label = ctk.CTkLabel(
-            row_frame,
+            name_frame,
             text=ch["name"],
             font=ctk.CTkFont(size=14),
             anchor="w",
             fg_color="transparent",
             cursor="hand2",
         )
-        name_label.pack(side="left", fill="x", expand=True, padx=4, pady=6)
+        name_label.pack(fill="x", pady=(2, 0))
         name_label.bind("<Button-1>", launch)
         name_label.bind("<Enter>", on_enter)
         name_label.bind("<Leave>", on_leave)
+
+        title_label = ctk.CTkLabel(
+            name_frame,
+            text=title if (is_live and title) else "",
+            font=ctk.CTkFont(size=11),
+            text_color="#888888",
+            anchor="w",
+            fg_color="transparent",
+            cursor="hand2",
+        )
+        title_label.bind("<Button-1>", launch)
+        title_label.bind("<Enter>", on_enter)
+        title_label.bind("<Leave>", on_leave)
+        if is_live and title:
+            title_label.pack(fill="x", pady=(0, 2))
+
+        self._row_widgets[ch["index"]] = {
+            "frame": row_frame,
+            "dot": dot,
+            "count_label": count_label,
+            "title_label": title_label,
+        }
 
     # ── Stream launcher ───────────────────────────────────────────────────────
 
@@ -324,7 +355,14 @@ class App(ctk.CTk):
 
     def _log(self, name: str, line: str) -> None:
         self.log_box.configure(state="normal")
-        self.log_box.insert("end", f"[{name}] {line}\n")
+        full_line = f"[{name}] {line}\n"
+        if re.search(r"advertisement", line, re.IGNORECASE):
+            tag = "log_ad"
+        elif re.search(r"resuming stream output", line, re.IGNORECASE):
+            tag = "log_resume"
+        else:
+            tag = None
+        self.log_box._textbox.insert("end", full_line, (tag,) if tag else ())
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
 
@@ -388,22 +426,45 @@ class App(ctk.CTk):
         live = fetch_live_data(logins, self.client_id, self.token)
         self.after(0, lambda: self._apply_status(live))
 
-    def _apply_status(self, live: set[str]) -> None:
+    def _apply_status(self, live: dict[str, dict]) -> None:
         if self.api_enabled:
             self._reset_countdown()
 
         # Sort live channels to the top, preserving original file order within each group
         self.channels.sort(key=lambda ch: (0 if ch["login"] in live else 1, ch["index"]))
 
-        # Rebuild the channel rows in sorted order
-        for widget in self.scroll_frame.winfo_children():
-            widget.destroy()
-        self._dot_labels.clear()
-
-        for i, ch in enumerate(self.channels):
+        # Update widgets in-place — no destroy/recreate
+        for ch in self.channels:
+            widgets = self._row_widgets.get(ch["index"])
+            if not widgets:
+                continue
             is_live = bool(ch["login"] and ch["login"] in live)
-            count = live.get(ch["login"], 0) if ch["login"] else 0
-            self._add_channel_row(i, ch, is_live=is_live, viewer_count=count)
+            info = live.get(ch["login"], {}) if ch["login"] else {}
+            count = info.get("viewers", 0)
+            title = info.get("title", "")
+
+            widgets["dot"].configure(
+                text_color=self.DOT_LIVE if is_live else self.DOT_OFFLINE
+            )
+            widgets["count_label"].configure(
+                text=_fmt_viewers(count) if is_live and count > 0 else ""
+            )
+            tl = widgets["title_label"]
+            if is_live and title:
+                tl.configure(text=title)
+                tl.pack(fill="x", pady=(0, 2))
+            else:
+                tl.pack_forget()
+
+        # Reorder rows without destroying them
+        for ch in self.channels:
+            widgets = self._row_widgets.get(ch["index"])
+            if widgets:
+                widgets["frame"].pack_forget()
+        for ch in self.channels:
+            widgets = self._row_widgets.get(ch["index"])
+            if widgets:
+                widgets["frame"].pack(fill="x", pady=1)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
